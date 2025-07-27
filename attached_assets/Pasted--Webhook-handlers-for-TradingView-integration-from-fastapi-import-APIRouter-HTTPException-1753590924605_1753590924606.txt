@@ -1,0 +1,64 @@
+"""
+Webhook handlers for TradingView integration
+"""
+from fastapi import APIRouter, HTTPException, Request, Depends
+from app.models import EnhancedAlert
+from app.config import settings
+import json
+import hmac
+import hashlib
+
+router = APIRouter(prefix="/webhook", tags=["webhooks"])
+
+def verify_webhook_signature(request: Request, body: bytes):
+    """Verify webhook authenticity if secret is configured"""
+    if not settings.WEBHOOK_SECRET:
+        return True
+        
+    signature = request.headers.get("X-Webhook-Signature")
+    if not signature:
+        return False
+        
+    expected = hmac.new(
+        settings.WEBHOOK_SECRET.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(signature, expected)
+
+@router.post("/tradingview")
+async def tradingview_webhook(request: Request):
+    """
+    Main webhook endpoint for TradingView alerts
+    This is where Pine Script alerts arrive
+    """
+    try:
+        # Get raw body for signature verification
+        body = await request.body()
+        
+        # Verify signature if configured
+        if not verify_webhook_signature(request, body):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+        
+        # Parse alert data
+        alert_data = json.loads(body)
+        
+        # Log for debugging
+        print(f"Webhook received: {alert_data}")
+        
+        # TODO: Process with Phase 2 intelligence
+        # For now, just acknowledge
+        
+        return {
+            "status": "success",
+            "message": "Alert received and queued for processing",
+            "alert_type": alert_data.get("alert_type"),
+            "symbol": alert_data.get("symbol")
+        }
+        
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    except Exception as e:
+        print(f"Webhook error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
