@@ -1,4 +1,3 @@
-
 """
 Data models for Amoeba Trading System
 Based on Technical Specifications
@@ -46,38 +45,23 @@ class FoodSource(BaseModel):
     predicted_duration: str = Field(..., pattern="^\\d+-\\d+h$")
     score: Optional[float] = Field(None, ge=0, le=10)
 
-# Enhanced Alert Model (Phase 2)
 class EnhancedAlert(BaseModel):
-    # From Pine Script
-    version: str = "1.0"
-    timestamp: datetime
-    symbol: str
-    exchange: str
+    """Enhanced alert model for Phase 2 Environmental Intelligence"""
     alert_type: str
-    direction: SignalDirection
-    strength: float = Field(..., ge=0, le=1)
-    confidence: float = Field(..., ge=0, le=1)
-    pressure: float = Field(..., ge=0)
-    threshold: Optional[float] = Field(None, ge=0)
-    
-    # Food Source Assessment
-    food_source: FoodSource
-    
-    # Phase 2 Enhancements
-    environmental_state: Optional[EnvironmentalState] = None
-    institutional_flow: Optional[Dict] = None
-    correlation_data: Optional[Dict] = None
-    ml_prediction: Optional[Dict] = None
-
-# Pattern Memory Model
-class Pattern(BaseModel):
     symbol: str
-    timestamp: datetime
-    environmental_state: Dict
-    signal_strength: float
-    confidence: float
-    food_source: FoodSource
-    outcome: Optional[float] = None
-    success_probability: float = 0.5
-    sample_count: int = 1
-    decay_weight: float = 1.0
+    exchange: Optional[str] = None
+    direction: Optional[str] = None
+    strength: Optional[float] = None
+    confidence: Optional[float] = None
+    pressure: Optional[float] = None
+    timestamp: Optional[str] = None
+    version: Optional[str] = "1.0"
+    message: Optional[str] = None
+
+class WebhookResponse(BaseModel):
+    """Standard webhook response model"""
+    status: str
+    message: str
+    alert_type: Optional[str] = None
+    symbol: Optional[str] = None
+    timestamp: str = datetime.utcnow().isoformat()

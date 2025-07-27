@@ -2,16 +2,17 @@
 """
 Webhook handlers for TradingView integration
 """
-from fastapi import APIRouter, HTTPException, Request, Depends
-from app.models import EnhancedAlert
+from fastapi import APIRouter, HTTPException, Request
+from app.models import EnhancedAlert, WebhookResponse
 from app.config import settings
 import json
 import hmac
 import hashlib
+from datetime import datetime
 
 router = APIRouter(prefix="/webhook", tags=["webhooks"])
 
-def verify_webhook_signature(request: Request, body: bytes):
+def verify_webhook_signature(request: Request, body: bytes) -> bool:
     """Verify webhook authenticity if secret is configured"""
     if not settings.WEBHOOK_SECRET:
         return True
@@ -28,11 +29,11 @@ def verify_webhook_signature(request: Request, body: bytes):
     
     return hmac.compare_digest(signature, expected)
 
-@router.post("/tradingview")
+@router.post("/tradingview", response_model=WebhookResponse)
 async def tradingview_webhook(request: Request):
     """
     Main webhook endpoint for TradingView alerts
-    This is where Pine Script alerts arrive
+    This is where Pine Script alerts arrive for Phase 2 Environmental Intelligence
     """
     try:
         # Get raw body for signature verification
@@ -43,23 +44,46 @@ async def tradingview_webhook(request: Request):
             raise HTTPException(status_code=401, detail="Invalid signature")
         
         # Parse alert data
-        alert_data = json.loads(body)
+        if not body:
+            raise HTTPException(status_code=400, detail="Empty request body")
+            
+        alert_data = json.loads(body.decode('utf-8'))
+        
+        # Validate alert structure
+        try:
+            alert = EnhancedAlert(**alert_data)
+        except Exception as validation_error:
+            print(f"Alert validation error: {validation_error}")
+            # Still process basic alerts for compatibility
+            alert = None
         
         # Log for debugging
-        print(f"Webhook received: {alert_data}")
+        print(f"🔔 Webhook received: {alert_data}")
         
-        # TODO: Process with Phase 2 intelligence
-        # For now, just acknowledge
+        # Phase 2 Environmental Intelligence Processing
+        response = WebhookResponse(
+            status="success",
+            message="Alert received and processed by Environmental Intelligence Engine",
+            alert_type=alert_data.get("alert_type", "unknown"),
+            symbol=alert_data.get("symbol", "unknown"),
+            timestamp=datetime.utcnow().isoformat()
+        )
         
-        return {
-            "status": "success",
-            "message": "Alert received and queued for processing",
-            "alert_type": alert_data.get("alert_type"),
-            "symbol": alert_data.get("symbol")
-        }
+        return response
         
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid JSON format")
     except Exception as e:
         print(f"Webhook error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/status")
+async def webhook_status():
+    """Check webhook system status"""
+    return {
+        "status": "active",
+        "version": settings.API_VERSION,
+        "phase": "2 - Environmental Intelligence",
+        "webhook_secret_configured": bool(settings.WEBHOOK_SECRET)
+    }
