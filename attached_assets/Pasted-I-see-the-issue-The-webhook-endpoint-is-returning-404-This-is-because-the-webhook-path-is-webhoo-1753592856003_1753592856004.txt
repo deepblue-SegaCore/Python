@@ -1,0 +1,284 @@
+I see the issue! The webhook endpoint is returning 404. This is because the webhook path is `/webhook/tradingview` but the test might be looking for a different path. Let me help you fix this and create a proper test file.
+
+## **Fix for Replit Assistant:**
+
+Please update the following:
+
+**1. Update `app/webhooks.py` to handle both JSON and form data:**
+
+```python
+"""
+Webhook handlers for TradingView integration
+"""
+from fastapi import APIRouter, HTTPException, Request, Body
+from app.models import EnhancedAlert
+from app.config import settings
+import json
+import hmac
+import hashlib
+from typing import Dict, Any
+
+router = APIRouter(prefix="/webhook", tags=["webhooks"])
+
+def verify_webhook_signature(request: Request, body: bytes):
+    """Verify webhook authenticity if secret is configured"""
+    if not settings.WEBHOOK_SECRET:
+        return True
+        
+    signature = request.headers.get("X-Webhook-Signature")
+    if not signature:
+        return False
+        
+    expected = hmac.new(
+        settings.WEBHOOK_SECRET.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(signature, expected)
+
+@router.post("/tradingview")
+async def tradingview_webhook(request: Request, body: Dict[str, Any] = Body(...)):
+    """
+    Main webhook endpoint for TradingView alerts
+    This is where Pine Script alerts arrive
+    """
+    try:
+        # Log for debugging
+        print(f"Webhook received: {body}")
+        
+        # Basic validation
+        if not body:
+            raise HTTPException(status_code=400, detail="Empty request body")
+        
+        # Extract key fields - handle both dict and string formats
+        if isinstance(body, str):
+            try:
+                alert_data = json.loads(body)
+            except json.JSONDecodeError:
+                alert_data = {"message": body}
+        else:
+            alert_data = body
+        
+        # Process alert
+        response = {
+            "status": "success",
+            "message": "Alert received and queued for processing",
+            "alert_type": alert_data.get("alert_type", "unknown"),
+            "symbol": alert_data.get("symbol", "unknown"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # TODO: Add Phase 2 intelligence processing here
+        
+        return response
+        
+    except Exception as e:
+        print(f"Webhook error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Also add a simple test endpoint
+@router.get("/test")
+async def test_webhook():
+    """Test endpoint to verify webhook routing"""
+    return {"message": "Webhook router is working"}
+```
+
+**2. Add missing import in webhooks.py (add at top):**
+
+```python
+from datetime import datetime
+```
+
+**3. Create a proper test file `test_system.py` in the root directory:**
+
+```python
+"""
+Comprehensive test suite for Amoeba Trading System
+Tests all endpoints and validates biological compliance
+"""
+import requests
+import json
+import time
+import sys
+from datetime import datetime
+
+BASE_URL = "http://localhost:5000"
+
+def test_health():
+    """Test health endpoint"""
+    try:
+        response = requests.get(f"{BASE_URL}/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "version" in data
+        print("✅ Health check passed")
+        return True
+    except Exception as e:
+        print(f"❌ Health check failed: {e}")
+        return False
+
+def test_root():
+    """Test root endpoint"""
+    try:
+        response = requests.get(f"{BASE_URL}/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["phase"] == "2 - Environmental Intelligence"
+        print("✅ Root endpoint passed")
+        return True
+    except Exception as e:
+        print(f"❌ Root endpoint failed: {e}")
+        return False
+
+def test_webhook():
+    """Test webhook endpoint with sample TradingView data"""
+    try:
+        # Sample TradingView alert format
+        test_alert = {
+            "version": "1.0",
+            "timestamp": datetime.utcnow().isoformat(),
+            "symbol": "BTCUSD",
+            "exchange": "BINANCE",
+            "alert_type": "ENVIRONMENTAL_PRESSURE",
+            "direction": "BULLISH",
+            "strength": 0.85,
+            "confidence": 0.92,
+            "pressure": 2.45,
+            "food_source": {
+                "quantity": "LARGE",
+                "quality": "HIGH",
+                "sustainability": "EXCELLENT",
+                "predicted_duration": "12-24h"
+            }
+        }
+        
+        response = requests.post(
+            f"{BASE_URL}/webhook/tradingview",
+            json=test_alert,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        print("✅ Webhook test passed")
+        return True
+    except Exception as e:
+        print(f"❌ Webhook test failed: {e}")
+        return False
+
+def test_api_docs():
+    """Test API documentation endpoint"""
+    try:
+        response = requests.get(f"{BASE_URL}/docs")
+        assert response.status_code == 200
+        print("✅ API documentation accessible")
+        return True
+    except Exception as e:
+        print(f"❌ API documentation failed: {e}")
+        return False
+
+def test_webhook_validation():
+    """Test webhook validation with invalid data"""
+    try:
+        # Test with empty body
+        response = requests.post(f"{BASE_URL}/webhook/tradingview", json={})
+        # Should still return 200 but handle gracefully
+        assert response.status_code == 200
+        
+        # Test with invalid JSON
+        response = requests.post(
+            f"{BASE_URL}/webhook/tradingview",
+            data="invalid json",
+            headers={"Content-Type": "application/json"}
+        )
+        # Should return 422 or 400
+        assert response.status_code in [400, 422]
+        
+        print("✅ Webhook validation passed")
+        return True
+    except Exception as e:
+        print(f"❌ Webhook validation failed: {e}")
+        return False
+
+def run_all_tests():
+    """Run all tests and report results"""
+    print("\n" + "="*60)
+    print("AMOEBA TRADING SYSTEM - PHASE 2 TEST SUITE")
+    print("="*60 + "\n")
+    
+    # Wait for server to be ready
+    print("⏳ Waiting for server to be ready...")
+    time.sleep(2)
+    
+    tests = [
+        ("Health Check", test_health),
+        ("Root Endpoint", test_root),
+        ("Webhook Endpoint", test_webhook),
+        ("API Documentation", test_api_docs),
+        ("Webhook Validation", test_webhook_validation)
+    ]
+    
+    passed = 0
+    failed = 0
+    
+    for test_name, test_func in tests:
+        print(f"\n🔍 Testing {test_name}...")
+        if test_func():
+            passed += 1
+        else:
+            failed += 1
+    
+    print("\n" + "="*60)
+    print("📊 TEST SUMMARY")
+    print("="*60)
+    print(f"✅ Tests Passed: {passed}/{len(tests)}")
+    print(f"❌ Tests Failed: {failed}/{len(tests)}")
+    
+    if failed == 0:
+        print("\n🎉 All tests passed! System is ready for Phase 2 development.")
+    else:
+        print(f"\n⚠️  {failed} tests failed. Please check the errors above.")
+    
+    print(f"\n🌐 Access your system at: {BASE_URL}")
+    print(f"📚 API Documentation: {BASE_URL}/docs")
+    print(f"💓 Health Check: {BASE_URL}/health")
+    print(f"🪝 Webhook URL: {BASE_URL}/webhook/tradingview")
+    
+    return failed == 0
+
+if __name__ == "__main__":
+    success = run_all_tests()
+    sys.exit(0 if success else 1)
+```
+
+**4. Create `.env` file in the root (optional but recommended):**
+
+```
+ENVIRONMENT=development
+WEBHOOK_SECRET=your-secret-key-here
+REDIS_URL=redis://localhost:6379
+```
+
+**5. Update the run command in your Replit to test:**
+
+First run the server:
+```bash
+python main.py
+```
+
+Then in a new shell tab, run the tests:
+```bash
+python test_system.py
+```
+
+## **Quick Debug Steps:**
+
+1. Check if the server is running properly
+2. Visit `http://localhost:5000/docs` in the webview
+3. Try the webhook test directly in the docs interface
+4. Check the console for any error messages
+
+The main issue was that the webhook endpoint path is `/webhook/tradingview` (not just `/webhook`). The updated test file and webhook handler should fix all the issues.
