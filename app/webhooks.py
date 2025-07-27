@@ -2,9 +2,10 @@
 """
 Webhook handlers for TradingView integration
 """
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Body
 from app.models import EnhancedAlert, WebhookResponse
 from app.config import settings
+from typing import Dict, Any
 import json
 import hmac
 import hashlib
@@ -86,4 +87,13 @@ async def webhook_status():
         "version": settings.API_VERSION,
         "phase": "2 - Environmental Intelligence",
         "webhook_secret_configured": bool(settings.WEBHOOK_SECRET)
+    }
+
+@router.get("/test")
+async def test_webhook():
+    """Test endpoint to verify webhook routing"""
+    return {
+        "message": "Webhook router is working",
+        "endpoint": "/api/v1/webhooks/tradingview",
+        "status": "ready"
     }
