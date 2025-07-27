@@ -10,7 +10,7 @@ import hmac
 import hashlib
 from datetime import datetime
 
-router = APIRouter(prefix="/webhook", tags=["webhooks"])
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 def verify_webhook_signature(request: Request, body: bytes) -> bool:
     """Verify webhook authenticity if secret is configured"""
