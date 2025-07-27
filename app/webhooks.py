@@ -1,48 +1,65 @@
 
-from fastapi import APIRouter, HTTPException, Request
-from app.models import WebhookData, TradeSignal
-import logging
+"""
+Webhook handlers for TradingView integration
+"""
+from fastapi import APIRouter, HTTPException, Request, Depends
+from app.models import EnhancedAlert
+from app.config import settings
+import json
+import hmac
+import hashlib
 
-router = APIRouter()
+router = APIRouter(prefix="/webhook", tags=["webhooks"])
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+def verify_webhook_signature(request: Request, body: bytes):
+    """Verify webhook authenticity if secret is configured"""
+    if not settings.WEBHOOK_SECRET:
+        return True
+        
+    signature = request.headers.get("X-Webhook-Signature")
+    if not signature:
+        return False
+        
+    expected = hmac.new(
+        settings.WEBHOOK_SECRET.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(signature, expected)
 
-@router.post("/webhooks/tradingview")
-async def receive_tradingview_webhook(webhook_data: WebhookData):
+@router.post("/tradingview")
+async def tradingview_webhook(request: Request):
     """
-    Receive and process TradingView webhook alerts
+    Main webhook endpoint for TradingView alerts
+    This is where Pine Script alerts arrive
     """
     try:
-        logger.info(f"Received webhook: {webhook_data.dict()}")
+        # Get raw body for signature verification
+        body = await request.body()
         
-        # Process the webhook data
-        trade_signal = TradeSignal(
-            symbol=webhook_data.symbol,
-            action=webhook_data.action,
-            price=webhook_data.price,
-            quantity=webhook_data.quantity,
-            timestamp=webhook_data.timestamp
-        )
+        # Verify signature if configured
+        if not verify_webhook_signature(request, body):
+            raise HTTPException(status_code=401, detail="Invalid signature")
         
-        # Here you would implement your trading logic
-        # For now, we'll just log the signal
-        logger.info(f"Processed trade signal: {trade_signal.dict()}")
+        # Parse alert data
+        alert_data = json.loads(body)
+        
+        # Log for debugging
+        print(f"Webhook received: {alert_data}")
+        
+        # TODO: Process with Phase 2 intelligence
+        # For now, just acknowledge
         
         return {
             "status": "success",
-            "message": "Webhook received and processed",
-            "signal": trade_signal.dict()
+            "message": "Alert received and queued for processing",
+            "alert_type": alert_data.get("alert_type"),
+            "symbol": alert_data.get("symbol")
         }
         
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
     except Exception as e:
-        logger.error(f"Error processing webhook: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing webhook: {str(e)}")
-
-@router.get("/webhooks/status")
-async def webhook_status():
-    """
-    Check webhook endpoint status
-    """
-    return {"status": "active", "endpoint": "/api/v1/webhooks/tradingview"}
+        print(f"Webhook error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
