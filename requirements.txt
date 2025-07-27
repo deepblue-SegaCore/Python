@@ -8,3 +8,5 @@ pydantic==2.5.0
 httpx==0.25.2
 pydantic-settings
 pydantic-settings
+python-dotenv
+python-dotenv

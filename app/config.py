@@ -3,8 +3,14 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):
+    # Phase 2 - Environmental Intelligence Configuration
+    API_TITLE: str = "Amoeba Trading System - Phase 2"
+    API_VERSION: str = "2.0.0"
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = False
+    
+    # Legacy settings
     app_name: str = "Amoeba Trading Backend"
-    debug: bool = False
     api_key: Optional[str] = None
     webhook_secret: Optional[str] = None
     
