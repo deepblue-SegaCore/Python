@@ -5,6 +5,7 @@ Webhook handlers for TradingView integration
 from fastapi import APIRouter, HTTPException, Request, Body
 from app.models import EnhancedAlert, WebhookResponse
 from app.config import settings
+from app.intelligence import FoodSourceIntelligence, FoodSourceAssessment
 from typing import Dict, Any
 import json
 import hmac
@@ -30,54 +31,64 @@ def verify_webhook_signature(request: Request, body: bytes) -> bool:
     
     return hmac.compare_digest(signature, expected)
 
-@router.post("/tradingview", response_model=WebhookResponse)
-async def tradingview_webhook(request: Request):
+@router.post("/tradingview")
+async def tradingview_webhook(request: Request, body: Dict[str, Any] = Body(...)):
     """
     Main webhook endpoint for TradingView alerts
-    This is where Pine Script alerts arrive for Phase 2 Environmental Intelligence
+    Enhanced with Phase 2 Food Source Intelligence
     """
     try:
-        # Get raw body for signature verification
-        body = await request.body()
-        
-        # Verify signature if configured
-        if not verify_webhook_signature(request, body):
-            raise HTTPException(status_code=401, detail="Invalid signature")
-        
-        # Parse alert data
-        if not body:
-            raise HTTPException(status_code=400, detail="Empty request body")
-            
-        alert_data = json.loads(body.decode('utf-8'))
-        
-        # Validate alert structure
-        try:
-            alert = EnhancedAlert(**alert_data)
-        except Exception as validation_error:
-            print(f"Alert validation error: {validation_error}")
-            # Still process basic alerts for compatibility
-            alert = None
+        # Initialize intelligence engine
+        food_intel = FoodSourceIntelligence()
         
         # Log for debugging
-        print(f"🔔 Webhook received: {alert_data}")
+        print(f"🔔 Webhook received: {body}")
         
-        # Phase 2 Environmental Intelligence Processing
-        response = WebhookResponse(
-            status="success",
-            message="Alert received and processed by Environmental Intelligence Engine",
-            alert_type=alert_data.get("alert_type", "unknown"),
-            symbol=alert_data.get("symbol", "unknown"),
-            timestamp=datetime.utcnow().isoformat()
-        )
+        # Basic validation
+        if not body:
+            raise HTTPException(status_code=400, detail="Empty request body")
+        
+        # Extract key fields - handle both dict and string formats
+        if isinstance(body, str):
+            try:
+                alert_data = json.loads(body)
+            except json.JSONDecodeError:
+                alert_data = {"message": body}
+        else:
+            alert_data = body
+        
+        # Perform food source assessment
+        assessment = food_intel.assess_food_source(alert_data)
+        
+        # Process alert with enhanced intelligence
+        response = {
+            "status": "success",
+            "message": "Alert received and processed with Phase 2 intelligence",
+            "alert_type": alert_data.get("alert_type", "unknown"),
+            "symbol": alert_data.get("symbol", "unknown"),
+            "timestamp": datetime.utcnow().isoformat(),
+            "food_source_assessment": {
+                "score": assessment.score,
+                "grade": assessment.rationale["grade"],
+                "sustainability": assessment.sustainability,
+                "predicted_duration": assessment.predicted_duration,
+                "quantity": assessment.quantity,
+                "quality": assessment.quality,
+                "confidence": assessment.confidence,
+                "details": assessment.rationale
+            }
+        }
+        
+        # Log the assessment
+        print(f"🍯 Food Source Assessment: Score={assessment.score}/10, "
+              f"Sustainability={assessment.sustainability}, "
+              f"Duration={assessment.predicted_duration}")
         
         return response
         
-    except json.JSONDecodeError as e:
-        print(f"JSON decode error: {str(e)}")
-        raise HTTPException(status_code=400, detail="Invalid JSON format")
     except Exception as e:
         print(f"Webhook error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/status")
 async def webhook_status():
