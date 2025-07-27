@@ -78,7 +78,7 @@ def test_webhook_basic():
         }
         
         response = requests.post(
-            f"{BASE_URL}/api/v1/webhook/tradingview",
+            f"{BASE_URL}/api/v1/webhooks/tradingview",
             json=alert_data,
             headers={"Content-Type": "application/json"}
         )
@@ -118,7 +118,7 @@ def test_webhook_with_signature():
         signature = create_test_signature(payload_str, WEBHOOK_SECRET)
         
         response = requests.post(
-            f"{BASE_URL}/api/v1/webhook/tradingview",
+            f"{BASE_URL}/api/v1/webhooks/tradingview",
             data=payload_str,
             headers={
                 "Content-Type": "application/json",
@@ -145,7 +145,7 @@ def test_webhook_invalid_data():
     try:
         # Test invalid JSON
         response = requests.post(
-            f"{BASE_URL}/api/v1/webhook/tradingview",
+            f"{BASE_URL}/api/v1/webhooks/tradingview",
             data="invalid json",
             headers={"Content-Type": "application/json"}
         )
@@ -155,7 +155,7 @@ def test_webhook_invalid_data():
         
         # Test empty payload
         response = requests.post(
-            f"{BASE_URL}/api/v1/webhook/tradingview",
+            f"{BASE_URL}/api/v1/webhooks/tradingview",
             json={},
             headers={"Content-Type": "application/json"}
         )
@@ -187,7 +187,7 @@ def test_performance():
             }
             
             response = requests.post(
-                f"{BASE_URL}/api/v1/webhook/tradingview",
+                f"{BASE_URL}/api/v1/webhooks/tradingview",
                 json=alert_data,
                 timeout=5
             )
