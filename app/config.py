@@ -1,27 +1,36 @@
 
-from pydantic_settings import BaseSettings
-from typing import Optional
+"""
+Configuration settings for Amoeba Trading System
+"""
+import os
+from dotenv import load_dotenv
 
-class Settings(BaseSettings):
-    # Phase 2 - Environmental Intelligence Configuration
-    API_TITLE: str = "Amoeba Trading System - Phase 2"
-    API_VERSION: str = "2.0.0"
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = False
+load_dotenv()
+
+class Settings:
+    # API Configuration
+    API_VERSION = "2.0.0"
+    API_TITLE = "Amoeba Trading System"
     
-    # Legacy settings
-    app_name: str = "Amoeba Trading Backend"
-    api_key: Optional[str] = None
-    webhook_secret: Optional[str] = None
+    # Biological Constants (from research)
+    MEMORY_DURATION_MINUTES = 95  # Amoeba memory limit
+    LEARNING_SUCCESS_TARGET = 0.70  # 70% target success rate
+    RESPONSE_TIME_LIMIT = 120  # seconds
     
-    # Trading configuration
-    default_quantity: float = 1.0
-    max_position_size: float = 10000.0
+    # Food Source Thresholds
+    FOOD_SCORE_PREMIUM = 9.0  # Premium grade threshold
+    FOOD_SCORE_HIGH = 7.0     # High grade threshold
+    FOOD_SCORE_GOOD = 5.0     # Good grade threshold
+    FOOD_SCORE_MODERATE = 3.0 # Moderate grade threshold
     
-    # Database (if needed later)
-    database_url: Optional[str] = None
+    # Redis Configuration (if using Replit's Redis)
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
     
-    class Config:
-        env_file = ".env"
+    # Security
+    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "your-secret-key")
+    
+    # Environment
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+    DEBUG = ENVIRONMENT == "development"
 
 settings = Settings()
