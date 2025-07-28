@@ -32,7 +32,7 @@ def verify_webhook_signature(request: Request, body: bytes) -> bool:
     return hmac.compare_digest(signature, expected)
 
 @router.post("/tradingview")
-async def tradingview_webhook(request: Request, body: Dict[str, Any] = Body(...)):
+async def tradingview_webhook(request: Request, body: Any = Body(None)):
     """
     Main webhook endpoint for TradingView alerts
     Enhanced with Phase 2 Food Source Intelligence
@@ -41,28 +41,45 @@ async def tradingview_webhook(request: Request, body: Dict[str, Any] = Body(...)
         # Initialize intelligence engine
         food_intel = FoodSourceIntelligence()
         
-        # Log for debugging
-        print(f"🔔 Webhook received: {body}")
+        # Get raw body for debugging
+        raw_body = await request.body()
+        content_type = request.headers.get("content-type", "")
         
-        # Basic validation
-        if body is None:
-            raise HTTPException(status_code=400, detail="Empty request body")
+        print(f"🔔 Webhook received - Content-Type: {content_type}")
+        print(f"🔔 Raw body: {raw_body}")
+        print(f"🔔 Parsed body: {body}")
         
-        # Extract key fields - handle both dict and string formats
-        if isinstance(body, str):
+        alert_data = {}
+        
+        # Handle different content types and formats
+        if body is None and raw_body:
+            # Try to parse raw body
+            try:
+                if content_type.startswith("application/json"):
+                    alert_data = json.loads(raw_body.decode('utf-8'))
+                else:
+                    # Treat as plain text
+                    alert_data = {"message": raw_body.decode('utf-8')}
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                alert_data = {"message": "Invalid payload format"}
+        elif isinstance(body, str):
             try:
                 alert_data = json.loads(body)
             except json.JSONDecodeError:
                 alert_data = {"message": body}
-        else:
+        elif isinstance(body, dict):
             alert_data = body
+        elif body is None:
+            alert_data = {"message": "Empty payload received"}
+        else:
+            alert_data = {"message": str(body)}
         
-        # Ensure we have at least some default values for empty payloads
-        if not alert_data:
+        # Ensure we have at least some default values
+        if not alert_data or len(alert_data) == 0:
             alert_data = {
                 "alert_type": "unknown",
-                "symbol": "unknown",
-                "message": "Empty payload received"
+                "symbol": "unknown", 
+                "message": "Empty or invalid payload"
             }
         
         # Perform food source assessment
@@ -115,4 +132,20 @@ async def test_webhook():
         "message": "Webhook router is working",
         "endpoint": "/api/v1/webhooks/tradingview",
         "status": "ready"
+    }
+
+@router.post("/debug")
+async def debug_webhook(request: Request, body: Any = Body(None)):
+    """Debug endpoint to inspect incoming webhook requests"""
+    raw_body = await request.body()
+    headers = dict(request.headers)
+    
+    return {
+        "method": request.method,
+        "url": str(request.url),
+        "headers": headers,
+        "raw_body": raw_body.decode('utf-8') if raw_body else None,
+        "parsed_body": body,
+        "content_type": headers.get("content-type"),
+        "content_length": headers.get("content-length")
     }
