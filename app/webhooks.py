@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, Body
 from app.models import EnhancedAlert, WebhookResponse
 from app.config import settings
 from app.intelligence import FoodSourceIntelligence, FoodSourceAssessment
+from app.memory import learning_system
 from typing import Dict, Any
 import json
 import hmac
@@ -85,12 +86,28 @@ async def tradingview_webhook(request: Request, body: Any = Body(None)):
         # Perform food source assessment
         assessment = food_intel.assess_food_source(alert_data)
         
+        # Process with pattern memory learning
+        symbol = alert_data.get("symbol", "unknown")
+        learning_result = learning_system.process_new_signal(symbol, {
+            'pressure': alert_data.get('pressure', 0),
+            'direction': alert_data.get('direction'),
+            'volume_surge_ratio': alert_data.get('volume_surge_ratio', 1),
+            'strength': alert_data.get('strength', 0),
+            'confidence': assessment.confidence,
+            'market_structure': alert_data.get('market_structure', 'NORMAL'),
+            'food_source': {
+                'score': assessment.score,
+                'grade': assessment.rationale.get("grade", "C"),
+                'sustainability': assessment.sustainability
+            }
+        })
+        
         # Process alert with enhanced intelligence
         response = {
             "status": "success",
             "message": "Alert received and processed with Phase 2 intelligence",
             "alert_type": alert_data.get("alert_type", "unknown"),
-            "symbol": alert_data.get("symbol", "unknown"),
+            "symbol": symbol,
             "timestamp": datetime.utcnow().isoformat(),
             "food_source_assessment": {
                 "score": assessment.score,
@@ -101,13 +118,23 @@ async def tradingview_webhook(request: Request, body: Any = Body(None)):
                 "quality": assessment.quality,
                 "confidence": assessment.confidence,
                 "details": assessment.rationale
+            },
+            "pattern_learning": {
+                "pattern_id": learning_result['pattern_id'],
+                "enhanced_confidence": learning_result['enhanced_confidence'],
+                "similar_patterns_found": learning_result['similar_patterns_found'],
+                "learning_recommendation": learning_result['learning_recommendation'],
+                "pattern_statistics": learning_result['pattern_statistics']
             }
         }
         
-        # Log the assessment
+        # Log the assessment and learning
         print(f"🍯 Food Source Assessment: Score={assessment.score}/10, "
               f"Sustainability={assessment.sustainability}, "
               f"Duration={assessment.predicted_duration}")
+        print(f"🧠 Pattern Learning: Enhanced Confidence={learning_result['enhanced_confidence']:.2f}, "
+              f"Similar Patterns={learning_result['similar_patterns_found']}, "
+              f"Recommendation: {learning_result['learning_recommendation']}")
         
         return response
         
