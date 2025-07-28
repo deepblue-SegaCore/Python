@@ -45,7 +45,7 @@ async def tradingview_webhook(request: Request, body: Dict[str, Any] = Body(...)
         print(f"🔔 Webhook received: {body}")
         
         # Basic validation
-        if not body:
+        if body is None:
             raise HTTPException(status_code=400, detail="Empty request body")
         
         # Extract key fields - handle both dict and string formats
@@ -56,6 +56,14 @@ async def tradingview_webhook(request: Request, body: Dict[str, Any] = Body(...)
                 alert_data = {"message": body}
         else:
             alert_data = body
+        
+        # Ensure we have at least some default values for empty payloads
+        if not alert_data:
+            alert_data = {
+                "alert_type": "unknown",
+                "symbol": "unknown",
+                "message": "Empty payload received"
+            }
         
         # Perform food source assessment
         assessment = food_intel.assess_food_source(alert_data)
