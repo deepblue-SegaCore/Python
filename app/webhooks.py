@@ -125,6 +125,13 @@ async def tradingview_webhook(request: Request, body: Any = Body(None)):
                 "similar_patterns_found": learning_result['similar_patterns_found'],
                 "learning_recommendation": learning_result['learning_recommendation'],
                 "pattern_statistics": learning_result['pattern_statistics']
+            },
+            "learning_analysis": {
+                "pattern_id": learning_result['pattern_id'],
+                "enhanced_confidence": learning_result['enhanced_confidence'],
+                "similar_patterns": learning_result['similar_patterns_found'],
+                "memory_stats": learning_result['pattern_statistics'],
+                "recommendation": learning_result['learning_recommendation']
             }
         }
         
@@ -135,6 +142,8 @@ async def tradingview_webhook(request: Request, body: Any = Body(None)):
         print(f"🧠 Pattern Learning: Enhanced Confidence={learning_result['enhanced_confidence']:.2f}, "
               f"Similar Patterns={learning_result['similar_patterns_found']}, "
               f"Recommendation: {learning_result['learning_recommendation']}")
+        print(f"Learning Analysis: {learning_result['learning_recommendation']}")
+        print(f"Pattern Memory: {learning_result['pattern_statistics']['total_patterns']} active patterns")
         
         return response
         
