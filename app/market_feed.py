@@ -1,7 +1,7 @@
 
 """
-Market Data Feed Module - Real Market Data
-Feeds real-time market data to existing Amoeba intelligence using free APIs
+Market Data Feed Module - Real Market Data via Binance API
+Feeds real-time market data to existing Amoeba intelligence using Binance public API
 """
 import asyncio
 import json
@@ -13,7 +13,7 @@ import ssl
 
 class MarketDataFeed:
     """
-    Real market data feed using free APIs (no external dependencies)
+    Real market data feed using Binance public API (no API key needed)
     """
     
     def __init__(self, food_intel, learning_system, websocket_manager):
@@ -22,16 +22,17 @@ class MarketDataFeed:
         self.learning_system = learning_system
         self.websocket_manager = websocket_manager
         
-        # Symbol configurations - using CoinGecko API format
+        # Symbol configurations - using Binance format
         self.symbols = {
-            'BTCUSD': 'bitcoin',
-            'ETHUSD': 'ethereum', 
-            'BNBUSD': 'binancecoin',
-            'SOLUSD': 'solana'
+            'BTCUSD': 'BTCUSDT',
+            'ETHUSD': 'ETHUSDT', 
+            'BNBUSD': 'BNBUSDT',
+            'SOLUSD': 'SOLUSDT',
+            'ADAUSD': 'ADAUSDT',
+            'DOTUSD': 'DOTUSDT'
         }
         
-        # API endpoints
-        self.coingecko_base = "https://api.coingecko.com/api/v3"
+        # Binance API endpoints
         self.binance_base = "https://api.binance.com/api/v3"
         
         # Create SSL context that doesn't verify certificates (for API calls)
@@ -43,13 +44,13 @@ class MarketDataFeed:
         """
         Continuously fetch real market data and process through existing intelligence
         """
-        print("🌊 Starting REAL market data feed...")
+        print("🌊 Starting REAL market data feed via Binance API...")
         
         while True:
-            for display_symbol, coin_id in self.symbols.items():
+            for display_symbol, binance_symbol in self.symbols.items():
                 try:
                     # Fetch real market data
-                    market_data = await self.fetch_real_market_data(display_symbol, coin_id)
+                    market_data = await self.fetch_binance_data(display_symbol, binance_symbol)
                     
                     if market_data:
                         # Process through YOUR existing intelligence!
@@ -83,7 +84,7 @@ class MarketDataFeed:
                                 "enhanced_confidence": learning_result['enhanced_confidence'],
                                 "recommendation": learning_result['learning_recommendation']
                             },
-                            "data_source": "CoinGecko API",
+                            "data_source": "Binance API",
                             "timestamp": datetime.utcnow().isoformat()
                         }
                         
@@ -92,32 +93,32 @@ class MarketDataFeed:
                         
                         print(f"📈 {display_symbol}: ${market_data['price']:.2f} | "
                               f"24h: {market_data.get('price_change_24h', 0):.2f}% | "
+                              f"Vol: ${market_data.get('volume', 0):,.0f} | "
                               f"Score: {assessment.score}/10")
                         
                 except Exception as e:
                     print(f"❌ Error fetching {display_symbol}: {e}")
                     
-            # Update every 30 seconds (respecting API rate limits)
-            await asyncio.sleep(30)
+            # Update every 10 seconds (Binance allows much higher rates)
+            await asyncio.sleep(10)
     
-    async def fetch_real_market_data(self, symbol: str, coin_id: str) -> Dict:
+    async def fetch_binance_data(self, symbol: str, binance_symbol: str) -> Dict:
         """
-        Fetch real market data from CoinGecko API
+        Fetch real market data from Binance public API
         """
         try:
-            # Fetch price data from CoinGecko
-            price_url = f"{self.coingecko_base}/simple/price?ids={coin_id}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true"
+            # Get 24hr ticker statistics from Binance
+            ticker_url = f"{self.binance_base}/ticker/24hr?symbol={binance_symbol}"
             
             # Make HTTP request
-            price_data = await self.make_api_request(price_url)
+            ticker_data = await self.make_api_request(ticker_url)
             
-            if not price_data or coin_id not in price_data:
+            if not ticker_data:
                 return None
                 
-            coin_data = price_data[coin_id]
-            current_price = coin_data['usd']
-            price_change_24h = coin_data.get('usd_24h_change', 0)
-            volume_24h = coin_data.get('usd_24h_vol', 0)
+            current_price = float(ticker_data['lastPrice'])
+            price_change_24h = float(ticker_data['priceChangePercent'])
+            volume_24h = float(ticker_data['volume']) * current_price  # Convert to USD volume
             
             # Calculate environmental pressure based on real data
             volatility_pressure = abs(price_change_24h) / 10.0  # Normalize percentage change
@@ -135,9 +136,9 @@ class MarketDataFeed:
             # Format data for your existing intelligence modules
             return {
                 'symbol': symbol,
-                'exchange': 'CoinGecko',
+                'exchange': 'Binance',
                 'price': float(current_price),
-                'volume': float(volume_24h) if volume_24h else 1000000,
+                'volume': float(volume_24h),
                 'price_change_24h': float(price_change_24h),
                 'pressure': float(environmental_pressure),
                 'threshold': 1.8,  # Your default
@@ -152,11 +153,17 @@ class MarketDataFeed:
                 'market_structure': 'TRENDING' if abs(price_change_24h) > 3 else 'NORMAL',
                 'consistent_advancement': price_change_24h > 1,
                 'consistent_decline': price_change_24h < -1,
-                'is_weekend_approach': False
+                'is_weekend_approach': False,
+                # Additional Binance-specific data
+                'high_24h': float(ticker_data['highPrice']),
+                'low_24h': float(ticker_data['lowPrice']),
+                'open_price': float(ticker_data['openPrice']),
+                'trade_count': int(ticker_data['count']),
+                'quote_volume': float(ticker_data['quoteVolume'])
             }
             
         except Exception as e:
-            print(f"❌ API Error for {symbol}: {e}")
+            print(f"❌ Binance API Error for {symbol}: {e}")
             return None
     
     async def make_api_request(self, url: str) -> Dict:
@@ -165,7 +172,7 @@ class MarketDataFeed:
         """
         try:
             request = urllib.request.Request(url)
-            request.add_header('User-Agent', 'Mozilla/5.0 (compatible; AmoebaTrading/1.0)')
+            request.add_header('User-Agent', 'Mozilla/5.0 (compatible; AmoebaTrading/2.0)')
             
             # Run in thread to avoid blocking
             loop = asyncio.get_event_loop()
@@ -178,7 +185,11 @@ class MarketDataFeed:
             return json.loads(data)
             
         except urllib.error.HTTPError as e:
-            print(f"❌ HTTP Error: {e.code} - {e.reason}")
+            if e.code == 429:
+                print(f"⚠️  Rate limit hit, waiting...")
+                await asyncio.sleep(5)  # Wait 5 seconds on rate limit
+            else:
+                print(f"❌ HTTP Error: {e.code} - {e.reason}")
             return None
         except urllib.error.URLError as e:
             print(f"❌ URL Error: {e}")
