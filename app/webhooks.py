@@ -145,6 +145,41 @@ async def tradingview_webhook(request: Request, body: Any = Body(None)):
         print(f"Learning Analysis: {learning_result['learning_recommendation']}")
         print(f"Pattern Memory: {learning_result['pattern_statistics']['total_patterns']} active patterns")
         
+        # Broadcast signal via WebSocket
+        try:
+            from fastapi import Request as FastAPIRequest
+            if hasattr(request, 'app') and hasattr(request.app.state, 'websocket_manager'):
+                import asyncio
+                websocket_manager = request.app.state.websocket_manager
+                
+                # Create WebSocket broadcast message
+                websocket_data = {
+                    "type": "trading_signal",
+                    "alert_type": alert_data.get("alert_type", "unknown"),
+                    "symbol": symbol,
+                    "direction": alert_data.get("direction"),
+                    "strength": alert_data.get("strength"),
+                    "confidence": assessment.confidence,
+                    "food_source": {
+                        "score": assessment.score,
+                        "grade": assessment.rationale["grade"],
+                        "sustainability": assessment.sustainability,
+                        "duration": assessment.predicted_duration
+                    },
+                    "pattern_learning": {
+                        "enhanced_confidence": learning_result['enhanced_confidence'],
+                        "similar_patterns": learning_result['similar_patterns_found'],
+                        "recommendation": learning_result['learning_recommendation']
+                    },
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                # Broadcast to all connected WebSocket clients
+                asyncio.create_task(websocket_manager.broadcast(websocket_data))
+                print(f"📡 Signal broadcasted via WebSocket to {len(websocket_manager.active_connections)} clients")
+        except Exception as ws_error:
+            print(f"⚠️ WebSocket broadcast failed: {ws_error}")
+        
         return response
         
     except Exception as e:
