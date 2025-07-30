@@ -1,0 +1,147 @@
+"""
+Market Data Feed Module
+Feeds real-time market data to existing Amoeba intelligence
+"""
+import asyncio
+import ccxt
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from typing import Dict, List
+import ta
+
+class MarketDataFeed:
+    """
+    Fetches market data and feeds it to existing intelligence system
+    """
+    
+    def __init__(self, food_intel, learning_system, websocket_manager):
+        self.exchange = ccxt.binance({
+            'enableRateLimit': True,
+            'options': {'defaultType': 'spot'}
+        })
+        
+        # Use YOUR existing intelligence modules!
+        self.food_intel = food_intel
+        self.learning_system = learning_system
+        self.websocket_manager = websocket_manager
+        
+        # Symbol configurations
+        self.symbols = {
+            'BTCUSD': 'BTC/USDT',
+            'ETHUSD': 'ETH/USDT',
+            'BNBUSD': 'BNB/USDT',
+            'SOLUSD': 'SOL/USDT'
+        }
+        
+    async def start_continuous_feed(self):
+        """
+        Continuously fetch market data and process through existing intelligence
+        """
+        print("🌊 Starting continuous market data feed...")
+        
+        while True:
+            for display_symbol, exchange_symbol in self.symbols.items():
+                try:
+                    # Fetch market data
+                    market_data = await self.fetch_and_prepare_data(
+                        display_symbol, 
+                        exchange_symbol
+                    )
+                    
+                    # Process through YOUR existing intelligence!
+                    assessment = self.food_intel.assess_food_source(market_data)
+                    
+                    # Process through YOUR pattern learning
+                    learning_result = self.learning_system.process_new_signal(
+                        display_symbol, 
+                        market_data
+                    )
+                    
+                    # Prepare broadcast data
+                    broadcast_data = {
+                        "type": "market_update",
+                        "symbol": display_symbol,
+                        "environmental_pressure": market_data['pressure'],
+                        "threshold": market_data['threshold'],
+                        "direction": market_data['direction'],
+                        "food_source": {
+                            "score": assessment.score,
+                            "grade": assessment.rationale["grade"],
+                            "quantity": assessment.quantity,
+                            "quality": assessment.quality,
+                            "sustainability": assessment.sustainability,
+                            "predicted_duration": assessment.predicted_duration
+                        },
+                        "pattern_learning": {
+                            "enhanced_confidence": learning_result['enhanced_confidence'],
+                            "recommendation": learning_result['learning_recommendation']
+                        },
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    
+                    # Broadcast to dashboard
+                    await self.websocket_manager.broadcast(broadcast_data)
+                    
+                except Exception as e:
+                    print(f"Error processing {display_symbol}: {e}")
+                    
+            # Update every 5 seconds
+            await asyncio.sleep(5)
+    
+    async def fetch_and_prepare_data(self, symbol: str, exchange_symbol: str) -> Dict:
+        """
+        Fetch market data and format it for existing intelligence modules
+        """
+        # Fetch OHLCV data
+        ohlcv = self.exchange.fetch_ohlcv(exchange_symbol, '1m', limit=100)
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        
+        # Calculate indicators (matching Pine Script)
+        # ATR
+        df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
+        baseline_atr = df['atr'].rolling(window=20).mean()
+        current_atr = df['atr'].iloc[-1]
+        
+        # Volume
+        baseline_volume = df['volume'].rolling(window=20).mean()
+        current_volume = df['volume'].iloc[-1]
+        
+        # Environmental pressure
+        volatility_pressure = current_atr / baseline_atr.iloc[-1] if baseline_atr.iloc[-1] > 0 else 1.0
+        volume_pressure = current_volume / baseline_volume.iloc[-1] if baseline_volume.iloc[-1] > 0 else 1.0
+        environmental_pressure = (volatility_pressure + volume_pressure) / 2
+        
+        # RSI
+        rsi_7 = ta.momentum.RSIIndicator(df['close'], window=7).rsi().iloc[-1]
+        rsi_14 = ta.momentum.RSIIndicator(df['close'], window=14).rsi().iloc[-1]
+        
+        # Direction
+        direction = "BULLISH" if rsi_14 > 55 else "BEARISH" if rsi_14 < 45 else "NEUTRAL"
+        
+        # Format data for your existing intelligence modules
+        return {
+            'symbol': symbol,
+            'exchange': 'BINANCE',
+            'price': float(df['close'].iloc[-1]),
+            'volume': float(current_volume),
+            'pressure': float(environmental_pressure),
+            'threshold': 1.8,  # Your default
+            'direction': direction,
+            'strength': float(environmental_pressure / 1.8),  # Relative to threshold
+            'confidence': 0.7,  # Base confidence
+            'volume_surge_ratio': float(volume_pressure),
+            'volume_trend_strength': 1.0,
+            'institutional_hours': self.is_institutional_hours(),
+            'range_expansion': 1.0,
+            'resistance_level': 'NORMAL',
+            'market_structure': 'NORMAL',
+            'consistent_advancement': False,
+            'consistent_decline': False,
+            'is_weekend_approach': False
+        }
+    
+    def is_institutional_hours(self) -> bool:
+        """Check if current time is institutional trading hours"""
+        hour = datetime.utcnow().hour
+        return 7 <= hour <= 22  # London + NY sessions

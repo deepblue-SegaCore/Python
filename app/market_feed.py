@@ -1,27 +1,21 @@
 
 """
-Market Data Feed Module
-Feeds real-time market data to existing Amoeba intelligence
+Market Data Feed Module - Simplified Version
+Feeds simulated market data to existing Amoeba intelligence
 """
 import asyncio
-import ccxt
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from typing import Dict, List
-import ta
+import random
 
 class MarketDataFeed:
     """
-    Fetches market data and feeds it to existing intelligence system
+    Simulated market data feed for testing (without ccxt dependency)
     """
     
     def __init__(self, food_intel, learning_system, websocket_manager):
-        self.exchange = ccxt.binance({
-            'enableRateLimit': True,
-            'options': {'defaultType': 'spot'}
-        })
-        
         # Use YOUR existing intelligence modules!
         self.food_intel = food_intel
         self.learning_system = learning_system
@@ -35,20 +29,25 @@ class MarketDataFeed:
             'SOLUSD': 'SOL/USDT'
         }
         
+        # Base prices for simulation
+        self.base_prices = {
+            'BTCUSD': 45000,
+            'ETHUSD': 2800,
+            'BNBUSD': 310,
+            'SOLUSD': 85
+        }
+        
     async def start_continuous_feed(self):
         """
-        Continuously fetch market data and process through existing intelligence
+        Continuously generate simulated market data and process through existing intelligence
         """
-        print("🌊 Starting continuous market data feed...")
+        print("🌊 Starting simulated market data feed...")
         
         while True:
             for display_symbol, exchange_symbol in self.symbols.items():
                 try:
-                    # Fetch market data
-                    market_data = await self.fetch_and_prepare_data(
-                        display_symbol, 
-                        exchange_symbol
-                    )
+                    # Generate simulated market data
+                    market_data = await self.generate_simulated_data(display_symbol)
                     
                     # Process through YOUR existing intelligence!
                     assessment = self.food_intel.assess_food_source(market_data)
@@ -87,58 +86,55 @@ class MarketDataFeed:
                 except Exception as e:
                     print(f"Error processing {display_symbol}: {e}")
                     
-            # Update every 5 seconds
-            await asyncio.sleep(5)
+            # Update every 10 seconds (slower for simulation)
+            await asyncio.sleep(10)
     
-    async def fetch_and_prepare_data(self, symbol: str, exchange_symbol: str) -> Dict:
+    async def generate_simulated_data(self, symbol: str) -> Dict:
         """
-        Fetch market data and format it for existing intelligence modules
+        Generate realistic simulated market data
         """
-        # Fetch OHLCV data
-        ohlcv = self.exchange.fetch_ohlcv(exchange_symbol, '1m', limit=100)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        base_price = self.base_prices[symbol]
         
-        # Calculate indicators (matching Pine Script)
-        # ATR
-        df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
-        baseline_atr = df['atr'].rolling(window=20).mean()
-        current_atr = df['atr'].iloc[-1]
+        # Generate realistic price movement
+        price_change = random.uniform(-0.05, 0.05)  # ±5% movement
+        current_price = base_price * (1 + price_change)
         
-        # Volume
-        baseline_volume = df['volume'].rolling(window=20).mean()
-        current_volume = df['volume'].iloc[-1]
-        
-        # Environmental pressure
-        volatility_pressure = current_atr / baseline_atr.iloc[-1] if baseline_atr.iloc[-1] > 0 else 1.0
-        volume_pressure = current_volume / baseline_volume.iloc[-1] if baseline_volume.iloc[-1] > 0 else 1.0
+        # Generate volume and volatility
+        volume = random.uniform(1000000, 5000000)
+        volatility_pressure = random.uniform(0.5, 3.0)
+        volume_pressure = random.uniform(0.8, 2.5)
         environmental_pressure = (volatility_pressure + volume_pressure) / 2
         
-        # RSI
-        rsi_7 = ta.momentum.RSIIndicator(df['close'], window=7).rsi().iloc[-1]
-        rsi_14 = ta.momentum.RSIIndicator(df['close'], window=14).rsi().iloc[-1]
+        # Generate RSI-like indicator
+        rsi_value = random.uniform(20, 80)
         
-        # Direction
-        direction = "BULLISH" if rsi_14 > 55 else "BEARISH" if rsi_14 < 45 else "NEUTRAL"
+        # Determine direction
+        if rsi_value > 60:
+            direction = "BULLISH"
+        elif rsi_value < 40:
+            direction = "BEARISH"
+        else:
+            direction = "NEUTRAL"
         
         # Format data for your existing intelligence modules
         return {
             'symbol': symbol,
-            'exchange': 'BINANCE',
-            'price': float(df['close'].iloc[-1]),
-            'volume': float(current_volume),
+            'exchange': 'SIMULATED',
+            'price': float(current_price),
+            'volume': float(volume),
             'pressure': float(environmental_pressure),
             'threshold': 1.8,  # Your default
             'direction': direction,
             'strength': float(environmental_pressure / 1.8),  # Relative to threshold
-            'confidence': 0.7,  # Base confidence
+            'confidence': random.uniform(0.5, 0.9),  # Simulated confidence
             'volume_surge_ratio': float(volume_pressure),
             'volume_trend_strength': 1.0,
             'institutional_hours': self.is_institutional_hours(),
             'range_expansion': 1.0,
             'resistance_level': 'NORMAL',
             'market_structure': 'NORMAL',
-            'consistent_advancement': False,
-            'consistent_decline': False,
+            'consistent_advancement': random.choice([True, False]),
+            'consistent_decline': random.choice([True, False]),
             'is_weekend_approach': False
         }
     
