@@ -13,17 +13,20 @@ from typing import List
 import os
 from dotenv import load_dotenv
 
-# Import routers
+# Import routers and components
 from app.webhooks import router as webhook_router
 from app.config import settings
+from app.intelligence import FoodSourceIntelligence
+from app.memory import learning_system
+from app.market_feed import MarketDataFeed
 
 load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(
-    title=settings.API_TITLE,
-    description="Biological Intelligence Trading System with WebSocket Support",
-    version=settings.API_VERSION,
+    title="Amoeba Trading Backend",
+    description="Trading backend with continuous market intelligence",
+    version="2.0.0",
     debug=settings.DEBUG
 )
 
@@ -76,6 +79,29 @@ manager = ConnectionManager()
 # Include routers
 app.include_router(webhook_router, prefix="/api/v1")
 
+# Initialize components
+food_intel = FoodSourceIntelligence()
+market_feed = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Start continuous market data feed"""
+    global market_feed
+    
+    # Store WebSocket manager in app state
+    app.state.websocket_manager = manager
+    
+    # Initialize market feed with existing intelligence
+    market_feed = MarketDataFeed(
+        food_intel=food_intel,
+        learning_system=learning_system,
+        websocket_manager=manager
+    )
+    
+    # Start continuous feed
+    asyncio.create_task(market_feed.start_continuous_feed())
+    print("✅ Market data feed started!")
+
 # WebSocket endpoint for real-time signals
 @app.websocket("/ws/signals")
 async def websocket_endpoint(websocket: WebSocket):
@@ -103,9 +129,11 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": settings.API_VERSION,
+        "version": "2.0.0",
         "environment": settings.ENVIRONMENT,
-        "websocket_connections": len(manager.active_connections)
+        "websocket_connections": len(manager.active_connections),
+        "intelligence": "Phase 2 Advanced",
+        "market_feed": "active" if market_feed else "inactive"
     }
 
 # Root endpoint
@@ -113,10 +141,16 @@ async def health_check():
 async def root():
     return {
         "name": "Amoeba Trading System",
-        "version": settings.API_VERSION,
-        "phase": "2 - Environmental Intelligence with WebSocket",
+        "version": "2.0.0",
+        "phase": "2 - Continuous Market Intelligence",
         "status": "operational",
         "websocket_connections": len(manager.active_connections),
+        "features": {
+            "food_source_intelligence": "10-point granular scoring",
+            "pattern_memory": "95-minute biological limit",
+            "market_feed": "Real-time from exchanges",
+            "websocket_support": "Live signal broadcasting"
+        },
         "endpoints": {
             "health": "/health",
             "webhook": "/api/v1/webhooks/tradingview",
@@ -141,6 +175,7 @@ if __name__ == "__main__":
     import uvicorn
     print("🌱 Starting Amoeba Trading System Backend...")
     print("🔌 WebSocket endpoint: ws://localhost:5000/ws/signals")
-    print("🌐 API endpoint: http://localhost:5000/api/v1/alerts")
+    print("🌐 API endpoint: http://localhost:5000/api/v1/webhooks/tradingview")
+    print("📊 Continuous market feed: ACTIVE")
     print("📚 Documentation: http://localhost:5000/docs")
     uvicorn.run(app, host="0.0.0.0", port=5000)
